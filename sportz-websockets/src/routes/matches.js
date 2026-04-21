@@ -1,9 +1,22 @@
 import { Router } from 'express';
-import {createMatchSchema, listMatchesQuerySchema} from "../validation/matches.js";
+import {
+    createMatchSchema,
+    listMatchesQuerySchema,
+    matchIdParamSchema,
+    updateScoreSchema,
+    MATCH_STATUS
+} from "../validation/matches.js";
 import {matches} from "../db/schema.js";
 import {db} from "../db/db.js";
-import {getMatchStatus} from "../utils/match-status.js";
-import {desc} from "drizzle-orm";
+import {getMatchStatus, syncMatchStatus} from "../utils/match-status.js";
+import {desc, eq} from "drizzle-orm";
+
+function formatZodError(error) {
+    return error.issues.map(issue => ({
+        path: issue.path.join('.'),
+        message: issue.message
+    }));
+}
 
 export const matchRouter = Router();
 
@@ -27,6 +40,7 @@ matchRouter.get('/', async (req, res) => {
 
         res.json({ data });
     } catch (e) {
+        console.error('Error listing matches:', e);
         res.status(500).json({ error: 'Failed to list matches.' });
     }
 })

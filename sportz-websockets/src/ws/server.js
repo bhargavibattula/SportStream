@@ -63,19 +63,43 @@ function handleMessage(socket, data) {
         message = JSON.parse(data.toString());
     } catch {
         sendJson(socket, { type: 'error', message: 'Invalid JSON' });
-    }
-
-    if(message?.type === "subscribe" && Number.isInteger(message.matchId)) {
-        subscribe(message.matchId, socket);
-        socket.subscriptions.add(message.matchId);
-        sendJson(socket, { type: 'subscribed', matchId: message.matchId });
         return;
     }
 
-    if(message?.type === "unsubscribe" && Number.isInteger(message.matchId)) {
-        unsubscribe(message.matchId, socket);
-        socket.subscriptions.delete(message.matchId);
-        sendJson(socket, { type: 'unsubscribed', matchId: message.matchId });
+    if (message?.type === "subscribe" && message.matchId !== undefined) {
+        const matchId = Number(message.matchId);
+        if (Number.isInteger(matchId)) {
+            subscribe(matchId, socket);
+            socket.subscriptions.add(matchId);
+            sendJson(socket, { type: 'subscribed', matchId });
+        }
+        return;
+    }
+
+    if (message?.type === "unsubscribe" && message.matchId !== undefined) {
+        const matchId = Number(message.matchId);
+        if (Number.isInteger(matchId)) {
+            unsubscribe(matchId, socket);
+            socket.subscriptions.delete(matchId);
+            sendJson(socket, { type: 'unsubscribed', matchId });
+        }
+        return;
+    }
+
+    if (message?.type === "setSubscriptions" && Array.isArray(message.matchIds)) {
+        // Clear old
+        cleanupSubscriptions(socket);
+        socket.subscriptions.clear();
+
+        // Add new
+        for (const rawId of message.matchIds) {
+            const matchId = Number(rawId);
+            if (Number.isInteger(matchId)) {
+                subscribe(matchId, socket);
+                socket.subscriptions.add(matchId);
+            }
+        }
+        sendJson(socket, { type: 'subscriptions', matchIds: Array.from(socket.subscriptions) });
     }
 }
 
@@ -153,8 +177,12 @@ export function attachWebSocketServer(server) {
     }
 
     function broadcastCommentary(matchId, comment) {
-        broadcastToMatch(matchId, { type: 'commentary', data: comment });
+        broadcastToMatch(Number(matchId), { type: 'commentary', matchId: Number(matchId), data: comment });
     }
 
-    return { broadcastMatchCreated, broadcastCommentary };
+    function broadcastScoreUpdate(matchId, scoreData) {
+        broadcastToMatch(Number(matchId), { type: 'score_update', matchId: Number(matchId), data: scoreData });
+    }
+
+    return { broadcastMatchCreated, broadcastCommentary, broadcastScoreUpdate };
 }
